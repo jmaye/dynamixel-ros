@@ -1,0 +1,5 @@
+<launch>
+  <node name="dynamixel" pkg="dynamixel" type="dynamixel_node" output="screen" respawn="true">
+    <rosparam command="load" file="$(find dynamixel)/etc/dynamixel.yaml"/>
+  </node>
+</launch>
