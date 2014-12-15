@@ -1,21 +1,13 @@
-diagnostics:
-  # percentage of the output_frequency subtracted to it
-  packet_min_freq_percentage: 0.2
-  # percentage of the output_frequency added to it
-  packet_max_freq_percentage: 0.2
-ros:
-  queue_depth: 100
-  frame_id: "/dynamixel_link"
-  # percentage of the output_frequency added to it
-  acquisition_loop_rate_percentage: 0.5
 sensor:
   device_name: "Dynamixel controller"
-  queue_capacity: 1000
-  max_inter_packet_time: 1.0
-  output_frequency: 400.0
-  # required for serial only devices
-  serial_device: "/dev/ttyUSB0"
-  baud_rate: 921600
-  output_orientation: false
-connection:
+  serial_port_device_name: "/dev/ttyUSB0"
+  serial_port_baud_rate: 1000000
+  motor_id: 1
+  calibrate_time: true
+joint_state_publisher:
+  topic: "joint_state"
+  queue_size: 100
+  freq_tol_percentage: 0.1
+ros:
   retry_timeout: 1.0
+  acquisition_loop_rate: 40.0
