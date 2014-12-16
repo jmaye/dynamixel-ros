@@ -23,7 +23,6 @@
 #include <ratio>
 #include <cstdint>
 #include <cmath>
-#include <algorithm>
 
 #include <boost/make_shared.hpp>
 
@@ -46,7 +45,9 @@ namespace dynamixel {
 /******************************************************************************/
 
   DynamixelNode::DynamixelNode(const ros::NodeHandle& nh) :
-      nodeHandle_(nh) {
+      nodeHandle_(nh),
+      modelNumber_(0),
+      motorConnected_(false) {
     // retrieve configurable parameters
     getParameters();
 
@@ -76,22 +77,6 @@ namespace dynamixel {
 /* Methods                                                                    */
 /******************************************************************************/
 
-  void DynamixelNode::calibrateTime() {
-    std::vector<int64_t> samples;
-    samples.reserve(calibrateTimeNumPackets_);
-    for (size_t i = 0; i < static_cast<size_t>(calibrateTimeNumPackets_); ++i) {
-      auto start = std::chrono::steady_clock::now();
-      controller_->getPresentPositionAngle(motorId_);
-      auto end = std::chrono::steady_clock::now();
-      samples.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(
-        end - start).count());
-    }
-    std::nth_element(samples.begin(), samples.begin() + samples.size() / 2,
-      samples.end());
-    timeOffset_ = std::round(samples[samples.size() / 2] / 2.0);
-    calibrateTime_ = false;
-  }
-
   void DynamixelNode::diagnoseSerialConnection(
       diagnostic_updater::DiagnosticStatusWrapper& status) {
     status.add("Serial port device", serialPortDeviceName_);
@@ -108,9 +93,34 @@ namespace dynamixel {
 
   void DynamixelNode::diagnoseMotor(diagnostic_updater::DiagnosticStatusWrapper&
       status) {
-    status.add("Time offset [ns]", timeOffset_);
-    status.summary(diagnostic_msgs::DiagnosticStatus::OK,
-      "OK");
+    if (motorConnected_) {
+      status.add("Motor ID", static_cast<unsigned>(motorId_));
+      status.add("Baud rate", 2000000.0 / (servoBaudRate_ + 1));
+      status.add("Model number", modelNumber_);
+      status.add("Model name", modelName_);
+      status.add("Firmware version", static_cast<unsigned>(firmwareVersion_));
+      status.add("Ticks number", maxTicks_ + 1);
+      status.add("Range [deg]", rangeInDegrees_);
+      status.add("Rpm per tick", rpmPerTick_);
+      status.add("Return delay time [us]", returnDelayTime_);
+      status.add("Time offset [ns]", timeOffset_);
+      status.add("Clockwise angle limit [tick]", cwAngleLimit_);
+      status.add("Counterclockwise angle limit [tick]", ccwAngleLimit_);
+      status.add("Highest limit temperature [C]", static_cast<unsigned>(
+        highestLimitTemperature_));
+      status.add("Highest limit voltage [V]", highestLimitVoltage_);
+      status.add("Lowest limit voltage [V]", lowestLimitVoltage_);
+      status.add("Maximum torque [%]", maxTorque_);
+      status.add("Torque enabled", torqueEnabled_);
+      status.add("Current position [rad]", currentPosition_);
+      status.add("Goal position [rad]", goalPosition_);
+      status.add("Moving speed [rad/s]", movingSpeed_);
+      status.add("Torque limit [%]", torqueLimit_);
+      status.summary(diagnostic_msgs::DiagnosticStatus::OK, "Motor connected");
+    }
+    else
+      status.summary(diagnostic_msgs::DiagnosticStatus::ERROR,
+        "No motor connected");
   }
 
   void DynamixelNode::spin() {
@@ -119,25 +129,70 @@ namespace dynamixel {
     ros::Rate loopRate(acquisitionLoopRate_);
     while (nodeHandle_.ok()) {
       try {
-        if (calibrateTime_)
-          calibrateTime();
-        auto position = controller_->getPresentPositionAngle(motorId_);
+        if (!modelNumber_) {
+          modelNumber_ = controller_->getModelNumber(motorId_);
+          if (!Controller::isModelSupported(modelNumber_))
+            throw BadArgumentException<size_t>(modelNumber_,
+              "DynamixelNode::spin(): model not supported");
+          firmwareVersion_ = controller_->getFirmwareVersion(motorId_);
+          returnDelayTime_ = controller_->getReturnDelayTimeUs(motorId_);
+          modelName_ = Controller::getModelInformation(modelNumber_).name;
+          maxTicks_ = Controller::getModelInformation(modelNumber_).maxTicks;
+          rangeInDegrees_ = Controller::getModelInformation(modelNumber_).
+            rangeInDegrees;
+          rpmPerTick_ = Controller::getModelInformation(modelNumber_).
+            rpmPerTick;
+          servoBaudRate_ = controller_->getBaudRate(motorId_);
+          cwAngleLimit_ = controller_->getCwAngleLimitAngle(motorId_);
+          ccwAngleLimit_ = controller_->getCcwAngleLimitAngle(motorId_);
+          highestLimitTemperature_ = controller_->getHighestLimitTemperature(
+            motorId_);
+          highestLimitVoltage_ = controller_->getHighestLimitVoltageVolt(
+            motorId_);
+          lowestLimitVoltage_ = controller_->getLowestLimitVoltageVolt(
+            motorId_);
+          maxTorque_ = controller_->getMaxTorquePercent(motorId_);
+          torqueEnabled_ = controller_->isTorqueEnable(motorId_);
+          goalPosition_ = controller_->getGoalPositionAngle(motorId_,
+            Controller::deg2rad(rangeInDegrees_), maxTicks_);
+          movingSpeed_ = Controller::revPerMin2RadPerSec(
+            controller_->getMovingSpeedRpm(motorId_, rpmPerTick_));
+          torqueLimit_ = controller_->getTorqueLimitPercent(motorId_);
+        }
+        auto start = std::chrono::steady_clock::now();
+        currentPosition_ = controller_->getPresentPositionAngle(motorId_,
+          Controller::deg2rad(rangeInDegrees_), maxTicks_);
+        auto end = std::chrono::steady_clock::now();
         auto timestamp = ros::Time::now();
+        timeOffset_ = std::round(
+          std::chrono::duration_cast<std::chrono::nanoseconds>(
+          end - start).count() / 2.0);
         timestamp -= ros::Duration(0, timeOffset_);
         jointStatePublisherFrequencyDiagnostic_->tick();
+        motorConnected_ = true;
         if (jointStatePublisher_.getNumSubscribers() > 0) {
           auto jointState = boost::make_shared<sensor_msgs::JointState>();
           jointState->header.stamp = timestamp;
           jointState->header.frame_id = jointStatePublisherFrameId_;
-          jointState->name.push_back(deviceName_ + "_joint");
-          jointState->position.push_back(position);
+          jointState->name.push_back(jointStatePublisherFrameId_ + "_joint");
+          jointState->position.push_back(currentPosition_);
           jointStatePublisher_.publish(jointState);
         }
+        tf::Transform transform;
+        transform.setOrigin(tf::Vector3(0.0, 0.0, 0.0) );
+        tf::Quaternion q;
+        q.setRPY(0, 0, currentPosition_);
+        transform.setRotation(q);
+        transformBroadcaster_.sendTransform(tf::StampedTransform(transform,
+          timestamp, jointStatePublisherFrameId_, jointStatePublisherFrameId_ +
+          "_servo"));
       }
       catch (const IOException& e) {
         ROS_WARN_STREAM_NAMED("dynamixel_node", "IOException: " << e.what());
         ROS_WARN_STREAM_NAMED("dynamixel_node", "Retrying in " << retryTimeout_
           << " [s]");
+        motorConnected_ = false;
+        modelNumber_ = 0;
         std::this_thread::sleep_for(std::chrono::milliseconds(
           static_cast<int64_t>(std::round(retryTimeout_ * std::milli::den))));
       }
@@ -146,6 +201,8 @@ namespace dynamixel {
           << e.what());
         ROS_WARN_STREAM_NAMED("dynamixel_node", "Retrying in "
           << retryTimeout_ << " [s]");
+        motorConnected_ = false;
+        modelNumber_ = 0;
         std::this_thread::sleep_for(std::chrono::milliseconds(
           static_cast<int64_t>(std::round(retryTimeout_ * std::milli::den))));
       }
@@ -154,6 +211,8 @@ namespace dynamixel {
           << e.what());
         ROS_WARN_STREAM_NAMED("dynamixel_node", "Retrying in " << retryTimeout_
           << " [s]");
+        motorConnected_ = false;
+        modelNumber_ = 0;
         std::this_thread::sleep_for(std::chrono::milliseconds(
           static_cast<int64_t>(std::round(retryTimeout_ * std::milli::den))));
       }
@@ -177,17 +236,16 @@ namespace dynamixel {
     nodeHandle_.param<std::string>("sensor/device_name", deviceName_,
       "Dynamixel controller");
     nodeHandle_.param<int>("sensor/motor_id", motorId_, 1);
-    nodeHandle_.param<bool>("sensor/calibrate_time", calibrateTime_, true);
-    nodeHandle_.param<int>("sensor/calibrate_time_num_packets",
-      calibrateTimeNumPackets_, 100);
 
     // joint state publisher parameters
     nodeHandle_.param<std::string>("joint_state_publisher/topic",
       jointStatePublisherTopic_, "joint_state");
-    nodeHandle_.param<double>("joint_state_publisher/freq_tol_percentage",
-      jointStatePublisherFreqTolPercentage_, 0.1);
+    nodeHandle_.param<int>("joint_state_publisher/queue_size",
+      jointStatePublisherQueueSize_, 100);
     nodeHandle_.param<std::string>("joint_state_publisher/frame_id",
       jointStatePublisherFrameId_, "dynamixel");
+    nodeHandle_.param<double>("joint_state_publisher/freq_tol_percentage",
+      jointStatePublisherFreqTolPercentage_, 0.1);
   }
 
 }

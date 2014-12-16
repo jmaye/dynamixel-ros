@@ -32,6 +32,8 @@
 
 #include <diagnostic_updater/diagnostic_updater.h>
 
+#include <tf/transform_broadcaster.h>
+
 namespace diagnostic_updater {
   class HeaderlessTopicDiagnostic;
 }
@@ -82,8 +84,6 @@ namespace dynamixel {
       status);
     /// Diagnose the servo motor
     void diagnoseMotor(diagnostic_updater::DiagnosticStatusWrapper& status);
-    /// Calibrate the timing between host PC and Dynamixel device
-    void calibrateTime();
     /** @}
       */
 
@@ -108,10 +108,6 @@ namespace dynamixel {
     double retryTimeout_;
     /// Servo motor ID
     int motorId_;
-    /// Time calibration requested
-    bool calibrateTime_;
-    /// Time calibration number of packets to exchange
-    int calibrateTimeNumPackets_;
     /// Time offset
     int64_t timeOffset_;
     /// ROS joint state publisher
@@ -131,6 +127,48 @@ namespace dynamixel {
     double jointStatePublisherMinFrequency_;
     /// ROS joint state publisher maximum frequency
     double jointStatePublisherMaxFrequency_;
+    /// ROS tf broadcaster
+    tf::TransformBroadcaster transformBroadcaster_;
+    /// Servo model number
+    uint16_t modelNumber_;
+    /// Servo model name
+    std::string modelName_;
+    /// Servo firmware version
+    uint8_t firmwareVersion_;
+    /// Return delay time
+    uint16_t returnDelayTime_;
+    /// Motor connected
+    bool motorConnected_;
+    /// Maximum number of ticks
+    uint16_t maxTicks_;
+    /// Range in degrees
+    double rangeInDegrees_;
+    /// Rpm per tick
+    double rpmPerTick_;
+    /// Motor baud rate
+    uint8_t servoBaudRate_;
+    /// Clockwise angle limit
+    double cwAngleLimit_;
+    /// Counterclockwise angle limit
+    double ccwAngleLimit_;
+    /// Highest limit temperature
+    uint8_t highestLimitTemperature_;
+    /// Highest limit voltage
+    double highestLimitVoltage_;
+    /// Lowest limit voltage
+    double lowestLimitVoltage_;
+    /// Maximum torque in percent
+    double maxTorque_;
+    /// Torque enabled
+    bool torqueEnabled_;
+    /// Current position
+    double currentPosition_;
+    /// Goal position
+    double goalPosition_;
+    /// Moving speed
+    double movingSpeed_;
+    /// Torque limit in percent
+    double torqueLimit_;
     /** @}
       */
 
