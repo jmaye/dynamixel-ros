@@ -1,0 +1,5 @@
+---
+bool response
+string message
+float64 cw_angle_limit
+float64 ccw_angle_limit

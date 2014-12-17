@@ -1,0 +1,7 @@
+---
+bool response
+string message
+uint8 cw_margin
+uint8 ccw_margin
+uint8 cw_slope
+uint8 ccw_slope

@@ -1,0 +1,4 @@
+---
+bool response
+string message
+bool torque_control_mode_enabled

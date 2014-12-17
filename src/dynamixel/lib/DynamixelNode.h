@@ -34,6 +34,19 @@
 
 #include <tf/transform_broadcaster.h>
 
+#include "dynamixel/SetPidGains.h"
+#include "dynamixel/GetPidGains.h"
+#include "dynamixel/SetCompliance.h"
+#include "dynamixel/GetCompliance.h"
+#include "dynamixel/SetAngleLimits.h"
+#include "dynamixel/GetAngleLimits.h"
+#include "dynamixel/SetMaxTorque.h"
+#include "dynamixel/GetMaxTorque.h"
+#include "dynamixel/SetTorqueEnable.h"
+#include "dynamixel/GetTorqueEnable.h"
+#include "dynamixel/SetTorqueControlModeEnable.h"
+#include "dynamixel/GetTorqueControlModeEnable.h"
+
 namespace diagnostic_updater {
   class HeaderlessTopicDiagnostic;
 }
@@ -84,6 +97,44 @@ namespace dynamixel {
       status);
     /// Diagnose the servo motor
     void diagnoseMotor(diagnostic_updater::DiagnosticStatusWrapper& status);
+    /// Set PID gains service
+    bool setPidGains(dynamixel::SetPidGains::Request& request,
+      dynamixel::SetPidGains::Response& response);
+    /// Get PID gains service
+    bool getPidGains(dynamixel::GetPidGains::Request& request,
+      dynamixel::GetPidGains::Response& response);
+    /// Set compliance service
+    bool setCompliance(dynamixel::SetCompliance::Request& request,
+      dynamixel::SetCompliance::Response& response);
+    /// Get compliance service
+    bool getCompliance(dynamixel::GetCompliance::Request& request,
+      dynamixel::GetCompliance::Response& response);
+    /// Set angle limits service
+    bool setAngleLimits(dynamixel::SetAngleLimits::Request& request,
+      dynamixel::SetAngleLimits::Response& response);
+    /// Get angle limits service
+    bool getAngleLimits(dynamixel::GetAngleLimits::Request& request,
+      dynamixel::GetAngleLimits::Response& response);
+    /// Set max torque service
+    bool setMaxTorque(dynamixel::SetMaxTorque::Request& request,
+      dynamixel::SetMaxTorque::Response& response);
+    /// Get max torque service
+    bool getMaxTorque(dynamixel::GetMaxTorque::Request& request,
+      dynamixel::GetMaxTorque::Response& response);
+    /// Set torque enable service
+    bool setTorqueEnable(dynamixel::SetTorqueEnable::Request& request,
+      dynamixel::SetTorqueEnable::Response& response);
+    /// Get torque enable service
+    bool getTorqueEnable(dynamixel::GetTorqueEnable::Request& request,
+      dynamixel::GetTorqueEnable::Response& response);
+    /// Set torque control mode enable service
+    bool setTorqueControlModeEnable(
+      dynamixel::SetTorqueControlModeEnable::Request& request,
+      dynamixel::SetTorqueControlModeEnable::Response& response);
+    /// Get torque control mode enable service
+    bool getTorqueControlModeEnable(
+      dynamixel::GetTorqueControlModeEnable::Request& request,
+      dynamixel::GetTorqueControlModeEnable::Response& response);
     /** @}
       */
 
@@ -169,6 +220,46 @@ namespace dynamixel {
     double movingSpeed_;
     /// Torque limit in percent
     double torqueLimit_;
+    /// P gain
+    double pGain_;
+    /// I gain
+    double iGain_;
+    /// D gain
+    double dGain_;
+    /// Clockwise compliance margin
+    uint8_t cwCompliangeMargin_;
+    /// Counterclockwise compliance margin
+    uint8_t ccwCompliangeMargin_;
+    /// Clockwise compliance slope
+    uint8_t cwCompliangeSlope_;
+    /// Counterclockwise compliance slope
+    uint8_t ccwCompliangeSlope_;
+    /// Torque control mode enabled
+    bool torqueControlModeEnabled_;
+    /// Set PID gains service
+    ros::ServiceServer setPidGainsService_;
+    /// Get PID gains service
+    ros::ServiceServer getPidGainsService_;
+    /// Set compliance service
+    ros::ServiceServer setComplianceService_;
+    /// Get compliance service
+    ros::ServiceServer getComplianceService_;
+    /// Set angle limits service
+    ros::ServiceServer setAngleLimitsService_;
+    /// Get angle limits service
+    ros::ServiceServer getAngleLimitsService_;
+    /// Set max torque service
+    ros::ServiceServer setMaxTorqueService_;
+    /// Get max torque service
+    ros::ServiceServer getMaxTorqueService_;
+    /// Set torque enable service
+    ros::ServiceServer setTorqueEnableService_;
+    /// Get torque enable service
+    ros::ServiceServer getTorqueEnableService_;
+    /// Set torque control mode enable service
+    ros::ServiceServer setTorqueControlModeEnableService_;
+    /// Get torque control mode enable service
+    ros::ServiceServer getTorqueControlModeEnableService_;
     /** @}
       */
 

@@ -1,0 +1,4 @@
+float64 max_torque
+---
+bool response
+string message

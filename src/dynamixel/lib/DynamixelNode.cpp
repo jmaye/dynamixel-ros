@@ -71,6 +71,34 @@ namespace dynamixel {
     // init joint state publisher
     jointStatePublisher_ = nodeHandle_.advertise<sensor_msgs::JointState>(
       jointStatePublisherTopic_, jointStatePublisherQueueSize_);
+
+    // init services
+    setPidGainsService_ = nodeHandle_.advertiseService("set_pid_gains",
+      &DynamixelNode::setPidGains, this);
+    getPidGainsService_ = nodeHandle_.advertiseService("get_pid_gains",
+      &DynamixelNode::getPidGains, this);
+    setComplianceService_ = nodeHandle_.advertiseService("set_compliance",
+      &DynamixelNode::setCompliance, this);
+    getComplianceService_ = nodeHandle_.advertiseService("get_compliance",
+      &DynamixelNode::getCompliance, this);
+    setAngleLimitsService_ = nodeHandle_.advertiseService("set_angle_limits",
+      &DynamixelNode::setAngleLimits, this);
+    getAngleLimitsService_ = nodeHandle_.advertiseService("get_angle_limits",
+      &DynamixelNode::getAngleLimits, this);
+    setMaxTorqueService_ = nodeHandle_.advertiseService("set_max_torque",
+      &DynamixelNode::setMaxTorque, this);
+    getMaxTorqueService_ = nodeHandle_.advertiseService("get_max_torque",
+      &DynamixelNode::getMaxTorque, this);
+    setTorqueEnableService_ = nodeHandle_.advertiseService("set_torque_enable",
+      &DynamixelNode::setTorqueEnable, this);
+    getTorqueEnableService_ = nodeHandle_.advertiseService("get_torque_enable",
+      &DynamixelNode::getTorqueEnable, this);
+    setTorqueControlModeEnableService_ = nodeHandle_.advertiseService(
+      "set_torque_control_mode_enable",
+      &DynamixelNode::setTorqueControlModeEnable, this);
+    getTorqueControlModeEnableService_ = nodeHandle_.advertiseService(
+      "get_torque_control_mode_enable",
+      &DynamixelNode::getTorqueControlModeEnable, this);
   }
 
 /******************************************************************************/
@@ -104,8 +132,8 @@ namespace dynamixel {
       status.add("Rpm per tick", rpmPerTick_);
       status.add("Return delay time [us]", returnDelayTime_);
       status.add("Time offset [ns]", timeOffset_);
-      status.add("Clockwise angle limit [tick]", cwAngleLimit_);
-      status.add("Counterclockwise angle limit [tick]", ccwAngleLimit_);
+      status.add("Clockwise angle limit [rad]", cwAngleLimit_);
+      status.add("Counterclockwise angle limit [rad]", ccwAngleLimit_);
       status.add("Highest limit temperature [C]", static_cast<unsigned>(
         highestLimitTemperature_));
       status.add("Highest limit voltage [V]", highestLimitVoltage_);
@@ -246,6 +274,233 @@ namespace dynamixel {
       jointStatePublisherFrameId_, "dynamixel");
     nodeHandle_.param<double>("joint_state_publisher/freq_tol_percentage",
       jointStatePublisherFreqTolPercentage_, 0.1);
+  }
+
+  bool DynamixelNode::setPidGains(dynamixel::SetPidGains::Request& request,
+      dynamixel::SetPidGains::Response& response) {
+    const auto oldPGain = pGain_;
+    const auto oldIGain = iGain_;
+    const auto oldDGain = dGain_;
+    try {
+      if (!motorConnected_)
+        throw IOException("DynamixelNode::setCompliance: motor not connected");
+      pGain_ = request.p_gain;
+      iGain_ = request.i_gain;
+      dGain_ = request.d_gain;
+      response.response = true;
+      response.message = "Success";
+    }
+    catch (const IOException& e) {
+      ROS_WARN_STREAM_NAMED("dynamixel_node", "DynamixelNode::setPidGains: "
+        "IOException: " << e.what());
+      response.response = false;
+      response.message = e.what();
+      pGain_ = oldPGain;
+      iGain_ = oldIGain;
+      dGain_ = oldDGain;
+    }
+    return true;
+  }
+
+  bool DynamixelNode::getPidGains(dynamixel::GetPidGains::Request& /*request*/,
+      dynamixel::GetPidGains::Response& response) {
+    if (motorConnected_) {
+      response.p_gain = pGain_;
+      response.i_gain = iGain_;
+      response.d_gain = dGain_;
+      response.response = true;
+      response.message = "Success";
+    }
+    else {
+      response.response = false;
+      response.message = "Motor not connected";
+    }
+    return true;
+  }
+
+  bool DynamixelNode::setCompliance(dynamixel::SetCompliance::Request& request,
+      dynamixel::SetCompliance::Response& response) {
+    const auto oldCwCompliangeMargin = cwCompliangeMargin_;
+    const auto oldCcwCompliangeMargin = ccwCompliangeMargin_;
+    const auto oldCwCompliangeSlope = cwCompliangeSlope_;
+    const auto oldCcwCompliangeSlope = ccwCompliangeSlope_;
+    try {
+      if (!motorConnected_)
+        throw IOException("DynamixelNode::setCompliance: motor not connected");
+      cwCompliangeMargin_ = request.cw_margin;
+      ccwCompliangeMargin_ = request.ccw_margin;
+      cwCompliangeSlope_ = request.cw_slope;
+      ccwCompliangeSlope_ = request.ccw_slope;
+      response.response = true;
+      response.message = "Success";
+    }
+    catch (const IOException& e) {
+      ROS_WARN_STREAM_NAMED("dynamixel_node", "IOException: " << e.what());
+      response.response = false;
+      response.message = e.what();
+      cwCompliangeMargin_ = oldCwCompliangeMargin;
+      ccwCompliangeMargin_ = oldCcwCompliangeMargin;
+      cwCompliangeSlope_ = oldCwCompliangeSlope;
+      ccwCompliangeSlope_ = oldCcwCompliangeSlope;
+    }
+    return true;
+  }
+
+  bool DynamixelNode::getCompliance(dynamixel::GetCompliance::Request&
+      /*request*/, dynamixel::GetCompliance::Response& response) {
+    if (motorConnected_) {
+      response.cw_margin = cwCompliangeMargin_;
+      response.ccw_margin = ccwCompliangeMargin_;
+      response.cw_slope = cwCompliangeSlope_;
+      response.ccw_slope = ccwCompliangeSlope_;
+      response.response = true;
+      response.message = "Success";
+    }
+    else {
+      response.response = false;
+      response.message = "Motor not connected";
+    }
+    return true;
+  }
+
+  bool DynamixelNode::setAngleLimits(dynamixel::SetAngleLimits::Request&
+      request, dynamixel::SetAngleLimits::Response& response) {
+    const auto oldCwAngleLimit = cwAngleLimit_;
+    const auto oldCcwAngleLimit = ccwAngleLimit_;
+    try {
+      if (!motorConnected_)
+        throw IOException("DynamixelNode::setAngleLimits: motor not connected");
+      cwAngleLimit_ = request.cw_angle_limit;
+      ccwAngleLimit_ = request.ccw_angle_limit;
+      response.response = true;
+      response.message = "Success";
+    }
+    catch (const IOException& e) {
+      ROS_WARN_STREAM_NAMED("dynamixel_node", "IOException: " << e.what());
+      response.response = false;
+      response.message = e.what();
+      cwAngleLimit_ = oldCwAngleLimit;
+      ccwAngleLimit_ = oldCcwAngleLimit;
+    }
+    return true;
+  }
+
+  bool DynamixelNode::getAngleLimits(dynamixel::GetAngleLimits::Request&
+      /*request*/, dynamixel::GetAngleLimits::Response& response) {
+    if (motorConnected_) {
+      response.cw_angle_limit = cwAngleLimit_;
+      response.ccw_angle_limit = ccwAngleLimit_;
+      response.response = true;
+      response.message = "Success";
+    }
+    else {
+      response.response = false;
+      response.message = "Motor not connected";
+    }
+    return true;
+  }
+
+  bool DynamixelNode::setMaxTorque(dynamixel::SetMaxTorque::Request& request,
+      dynamixel::SetMaxTorque::Response& response) {
+    const auto oldMaxTorque = maxTorque_;
+    try {
+      if (!motorConnected_)
+        throw IOException("DynamixelNode::setMaxTorque: motor not connected");
+      maxTorque_ = request.max_torque;
+      response.response = true;
+      response.message = "Success";
+    }
+    catch (const IOException& e) {
+      ROS_WARN_STREAM_NAMED("dynamixel_node", "IOException: " << e.what());
+      response.response = false;
+      response.message = e.what();
+      maxTorque_ = oldMaxTorque;
+    }
+    return true;
+  }
+
+  bool DynamixelNode::getMaxTorque(dynamixel::GetMaxTorque::Request&
+      /*request*/, dynamixel::GetMaxTorque::Response& response) {
+    if (motorConnected_) {
+      response.max_torque = maxTorque_;
+      response.response = true;
+      response.message = "Success";
+    }
+    else {
+      response.response = false;
+      response.message = "Motor not connected";
+    }
+    return true;
+  }
+
+  bool DynamixelNode::setTorqueEnable(dynamixel::SetTorqueEnable::Request&
+      request, dynamixel::SetTorqueEnable::Response& response) {
+    const auto oldTorqueEnabled = torqueEnabled_;
+    try {
+      if (!motorConnected_)
+        throw IOException(
+          "DynamixelNode::setTorqueEnable: motor not connected");
+      torqueEnabled_ = request.enable_torque;
+      response.response = true;
+      response.message = "Success";
+    }
+    catch (const IOException& e) {
+      ROS_WARN_STREAM_NAMED("dynamixel_node", "IOException: " << e.what());
+      response.response = false;
+      response.message = e.what();
+      torqueEnabled_ = oldTorqueEnabled;
+    }
+    return true;
+  }
+
+  bool DynamixelNode::getTorqueEnable(dynamixel::GetTorqueEnable::Request&
+      /*request*/, dynamixel::GetTorqueEnable::Response& response) {
+    if (motorConnected_) {
+      response.torque_enabled = torqueEnabled_;
+      response.response = true;
+      response.message = "Success";
+    }
+    else {
+      response.response = false;
+      response.message = "Motor not connected";
+    }
+    return true;
+  }
+
+  bool DynamixelNode::setTorqueControlModeEnable(
+      dynamixel::SetTorqueControlModeEnable::Request& request,
+      dynamixel::SetTorqueControlModeEnable::Response& response) {
+    const auto oldTorqueControlModeEnabled = torqueControlModeEnabled_;
+    try {
+      if (!motorConnected_)
+        throw IOException(
+          "DynamixelNode::setTorqueControlModeEnable: motor not connected");
+      torqueControlModeEnabled_ = request.enable_torque_control_mode;
+      response.response = true;
+      response.message = "Success";
+    }
+    catch (const IOException& e) {
+      ROS_WARN_STREAM_NAMED("dynamixel_node", "IOException: " << e.what());
+      response.response = false;
+      response.message = e.what();
+      torqueControlModeEnabled_ = oldTorqueControlModeEnabled;
+    }
+    return true;
+  }
+
+  bool DynamixelNode::getTorqueControlModeEnable(
+      dynamixel::GetTorqueControlModeEnable::Request& /*request*/,
+      dynamixel::GetTorqueControlModeEnable::Response& response) {
+    if (motorConnected_) {
+      response.torque_control_mode_enabled = torqueControlModeEnabled_;
+      response.response = true;
+      response.message = "Success";
+    }
+    else {
+      response.response = false;
+      response.message = "Motor not connected";
+    }
+    return true;
   }
 
 }
