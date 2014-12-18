@@ -130,20 +130,53 @@ namespace dynamixel {
       status.add("Ticks number", maxTicks_ + 1);
       status.add("Range [deg]", rangeInDegrees_);
       status.add("Rpm per tick", rpmPerTick_);
-      status.add("Return delay time [us]", returnDelayTime_);
+      status.add("Return delay time [us]",
+        Controller::raw2us(returnDelayTime_));
       status.add("Time offset [ns]", timeOffset_);
-      status.add("Clockwise angle limit [rad]", cwAngleLimit_);
-      status.add("Counterclockwise angle limit [rad]", ccwAngleLimit_);
+      status.add("Clockwise angle limit [rad]", Controller::tick2angle(
+        cwAngleLimit_, Controller::deg2rad(rangeInDegrees_), maxTicks_));
+      status.add("Counterclockwise angle limit [rad]", Controller::tick2angle(
+        ccwAngleLimit_, Controller::deg2rad(rangeInDegrees_), maxTicks_));
       status.add("Highest limit temperature [C]", static_cast<unsigned>(
         highestLimitTemperature_));
-      status.add("Highest limit voltage [V]", highestLimitVoltage_);
-      status.add("Lowest limit voltage [V]", lowestLimitVoltage_);
-      status.add("Maximum torque [%]", maxTorque_);
+      status.add("Highest limit voltage [V]", Controller::raw2volt(
+        highestLimitVoltage_));
+      status.add("Lowest limit voltage [V]",Controller::raw2volt(
+        lowestLimitVoltage_));
+      status.add("Maximum torque [%]", Controller::raw2torqueRatio(maxTorque_) *
+        100.0);
       status.add("Torque enabled", torqueEnabled_);
-      status.add("Current position [rad]", currentPosition_);
-      status.add("Goal position [rad]", goalPosition_);
-      status.add("Moving speed [rad/s]", movingSpeed_);
-      status.add("Torque limit [%]", torqueLimit_);
+      if (Controller::isModelMX(modelNumber_)) {
+        status.add("P gain", Controller::raw2Kp(pGain_));
+        status.add("I gain", Controller::raw2Ki(iGain_));
+        status.add("D gain", Controller::raw2Kd(dGain_));
+      }
+      else {
+        status.add("Clockwise compliance margin", cwComplianceMargin_);
+        status.add("Counterclockwise compliance margin", ccwComplianceMargin_);
+        status.add("Clockwise compliance slope", cwComplianceSlope_);
+        status.add("Counterclockwise compliance slope", ccwComplianceSlope_);
+      }
+      status.add("Goal position [rad]", Controller::tick2angle(
+        goalPosition_, Controller::deg2rad(rangeInDegrees_), maxTicks_));
+      status.add("Moving speed [rad/s]", Controller::rpm2rps(
+        Controller::raw2rpm(movingSpeed_, rpmPerTick_)));
+      status.add("Torque limit [%]", Controller::raw2torqueRatio(torqueLimit_) *
+        100.0);
+      status.add("Present position [rad]", Controller::tick2angle(
+        presentPosition_, Controller::deg2rad(rangeInDegrees_), maxTicks_));
+      status.add("Present speed [rad/s]", Controller::rpm2rps(
+        Controller::raw2rpm(presentSpeed_, rpmPerTick_)));
+      status.add("Present load [%]", Controller::raw2torqueRatio(presentLoad_) *
+        100.0);
+      status.add("Present voltage [V]", Controller::raw2volt(presentVoltage_));
+      status.add("Present temperature [C]", static_cast<unsigned>(
+        presentTemperature_));
+      status.add("Moving", moving_);
+      if (Controller::isModelTorqueControl(modelNumber_)) {
+        status.add("Torque control mode enabled", torqueControlModeEnabled_);
+        status.add("Goal torque", goalTorque_);
+      }
       status.summary(diagnostic_msgs::DiagnosticStatus::OK, "Motor connected");
     }
     else
@@ -163,7 +196,7 @@ namespace dynamixel {
             throw BadArgumentException<size_t>(modelNumber_,
               "DynamixelNode::spin(): model not supported");
           firmwareVersion_ = controller_->getFirmwareVersion(motorId_);
-          returnDelayTime_ = controller_->getReturnDelayTimeUs(motorId_);
+          returnDelayTime_ = controller_->getReturnDelayTime(motorId_);
           modelName_ = Controller::getModelInformation(modelNumber_).name;
           maxTicks_ = Controller::getModelInformation(modelNumber_).maxTicks;
           rangeInDegrees_ = Controller::getModelInformation(modelNumber_).
@@ -171,25 +204,31 @@ namespace dynamixel {
           rpmPerTick_ = Controller::getModelInformation(modelNumber_).
             rpmPerTick;
           servoBaudRate_ = controller_->getBaudRate(motorId_);
-          cwAngleLimit_ = controller_->getCwAngleLimitAngle(motorId_);
-          ccwAngleLimit_ = controller_->getCcwAngleLimitAngle(motorId_);
+          cwAngleLimit_ = controller_->getCwAngleLimit(motorId_);
+          ccwAngleLimit_ = controller_->getCcwAngleLimit(motorId_);
           highestLimitTemperature_ = controller_->getHighestLimitTemperature(
             motorId_);
-          highestLimitVoltage_ = controller_->getHighestLimitVoltageVolt(
-            motorId_);
-          lowestLimitVoltage_ = controller_->getLowestLimitVoltageVolt(
-            motorId_);
-          maxTorque_ = controller_->getMaxTorquePercent(motorId_);
+          highestLimitVoltage_ = controller_->getHighestLimitVoltage(motorId_);
+          lowestLimitVoltage_ = controller_->getLowestLimitVoltage(motorId_);
+          maxTorque_ = controller_->getMaxTorque(motorId_);
           torqueEnabled_ = controller_->isTorqueEnable(motorId_);
-          goalPosition_ = controller_->getGoalPositionAngle(motorId_,
-            Controller::deg2rad(rangeInDegrees_), maxTicks_);
-          movingSpeed_ = Controller::revPerMin2RadPerSec(
-            controller_->getMovingSpeedRpm(motorId_, rpmPerTick_));
-          torqueLimit_ = controller_->getTorqueLimitPercent(motorId_);
+          if (Controller::isModelMX(modelNumber_))
+            controller_->getPIDGains(motorId_, pGain_, iGain_, dGain_);
+          else
+            controller_->getCompliance(motorId_, cwComplianceMargin_,
+              ccwComplianceMargin_, cwComplianceSlope_, ccwComplianceSlope_);
+          controller_->getGoalPositionSpeedTorque(motorId_, goalPosition_,
+            movingSpeed_, torqueLimit_);
+          if (Controller::isModelTorqueControl(modelNumber_)) {
+            torqueControlModeEnabled_ =
+              controller_->isTorqueControlModeEnable(motorId_);
+            goalTorque_ = controller_->getGoalTorque(motorId_);
+          }
         }
         auto start = std::chrono::steady_clock::now();
-        currentPosition_ = controller_->getPresentPositionAngle(motorId_,
-          Controller::deg2rad(rangeInDegrees_), maxTicks_);
+        controller_->getState(motorId_, presentPosition_, presentSpeed_,
+          presentLoad_, presentVoltage_, presentTemperature_, registered_,
+          moving_);
         auto end = std::chrono::steady_clock::now();
         auto timestamp = ros::Time::now();
         timeOffset_ = std::round(
@@ -203,13 +242,15 @@ namespace dynamixel {
           jointState->header.stamp = timestamp;
           jointState->header.frame_id = jointStatePublisherFrameId_;
           jointState->name.push_back(jointStatePublisherFrameId_ + "_joint");
-          jointState->position.push_back(currentPosition_);
+          jointState->position.push_back(Controller::tick2angle(
+            presentPosition_, Controller::deg2rad(rangeInDegrees_), maxTicks_));
           jointStatePublisher_.publish(jointState);
         }
         tf::Transform transform;
-        transform.setOrigin(tf::Vector3(0.0, 0.0, 0.0) );
+        transform.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
         tf::Quaternion q;
-        q.setRPY(0, 0, currentPosition_);
+        q.setRPY(0, 0, Controller::tick2angle(presentPosition_,
+          Controller::deg2rad(rangeInDegrees_), maxTicks_));
         transform.setRotation(q);
         transformBroadcaster_.sendTransform(tf::StampedTransform(transform,
           timestamp, jointStatePublisherFrameId_, jointStatePublisherFrameId_ +
@@ -283,10 +324,11 @@ namespace dynamixel {
     const auto oldDGain = dGain_;
     try {
       if (!motorConnected_)
-        throw IOException("DynamixelNode::setCompliance: motor not connected");
-      pGain_ = request.p_gain;
-      iGain_ = request.i_gain;
-      dGain_ = request.d_gain;
+        throw IOException("DynamixelNode::setPidGains: motor not connected");
+      pGain_ = Controller::Kp2raw(request.p_gain);
+      iGain_ = Controller::Ki2raw(request.i_gain);
+      dGain_ = Controller::Kd2raw(request.d_gain);
+      controller_->setPIDGains(motorId_, pGain_, iGain_, dGain_);
       response.response = true;
       response.message = "Success";
     }
@@ -305,9 +347,9 @@ namespace dynamixel {
   bool DynamixelNode::getPidGains(dynamixel::GetPidGains::Request& /*request*/,
       dynamixel::GetPidGains::Response& response) {
     if (motorConnected_) {
-      response.p_gain = pGain_;
-      response.i_gain = iGain_;
-      response.d_gain = dGain_;
+      response.p_gain = Controller::raw2Kp(pGain_);
+      response.i_gain = Controller::raw2Ki(iGain_);
+      response.d_gain = Controller::raw2Kd(dGain_);
       response.response = true;
       response.message = "Success";
     }
@@ -320,17 +362,19 @@ namespace dynamixel {
 
   bool DynamixelNode::setCompliance(dynamixel::SetCompliance::Request& request,
       dynamixel::SetCompliance::Response& response) {
-    const auto oldCwCompliangeMargin = cwCompliangeMargin_;
-    const auto oldCcwCompliangeMargin = ccwCompliangeMargin_;
-    const auto oldCwCompliangeSlope = cwCompliangeSlope_;
-    const auto oldCcwCompliangeSlope = ccwCompliangeSlope_;
+    const auto oldCwComplianceMargin = cwComplianceMargin_;
+    const auto oldCcwComplianceMargin = ccwComplianceMargin_;
+    const auto oldCwComplianceSlope = cwComplianceSlope_;
+    const auto oldCcwComplianceSlope = ccwComplianceSlope_;
     try {
       if (!motorConnected_)
         throw IOException("DynamixelNode::setCompliance: motor not connected");
-      cwCompliangeMargin_ = request.cw_margin;
-      ccwCompliangeMargin_ = request.ccw_margin;
-      cwCompliangeSlope_ = request.cw_slope;
-      ccwCompliangeSlope_ = request.ccw_slope;
+      cwComplianceMargin_ = request.cw_margin;
+      ccwComplianceMargin_ = request.ccw_margin;
+      cwComplianceSlope_ = request.cw_slope;
+      ccwComplianceSlope_ = request.ccw_slope;
+      controller_->setCompliance(motorId_, cwComplianceMargin_,
+        ccwComplianceMargin_, cwComplianceSlope_, ccwComplianceSlope_);
       response.response = true;
       response.message = "Success";
     }
@@ -338,10 +382,10 @@ namespace dynamixel {
       ROS_WARN_STREAM_NAMED("dynamixel_node", "IOException: " << e.what());
       response.response = false;
       response.message = e.what();
-      cwCompliangeMargin_ = oldCwCompliangeMargin;
-      ccwCompliangeMargin_ = oldCcwCompliangeMargin;
-      cwCompliangeSlope_ = oldCwCompliangeSlope;
-      ccwCompliangeSlope_ = oldCcwCompliangeSlope;
+      cwComplianceMargin_ = oldCwComplianceMargin;
+      ccwComplianceMargin_ = oldCcwComplianceMargin;
+      cwComplianceSlope_ = oldCwComplianceSlope;
+      ccwComplianceSlope_ = oldCcwComplianceSlope;
     }
     return true;
   }
@@ -349,10 +393,10 @@ namespace dynamixel {
   bool DynamixelNode::getCompliance(dynamixel::GetCompliance::Request&
       /*request*/, dynamixel::GetCompliance::Response& response) {
     if (motorConnected_) {
-      response.cw_margin = cwCompliangeMargin_;
-      response.ccw_margin = ccwCompliangeMargin_;
-      response.cw_slope = cwCompliangeSlope_;
-      response.ccw_slope = ccwCompliangeSlope_;
+      response.cw_margin = cwComplianceMargin_;
+      response.ccw_margin = ccwComplianceMargin_;
+      response.cw_slope = cwComplianceSlope_;
+      response.ccw_slope = ccwComplianceSlope_;
       response.response = true;
       response.message = "Success";
     }
@@ -370,8 +414,13 @@ namespace dynamixel {
     try {
       if (!motorConnected_)
         throw IOException("DynamixelNode::setAngleLimits: motor not connected");
-      cwAngleLimit_ = request.cw_angle_limit;
-      ccwAngleLimit_ = request.ccw_angle_limit;
+      cwAngleLimit_ = Controller::angle2tick(request.cw_angle_limit,
+        Controller::deg2rad(rangeInDegrees_), maxTicks_);
+      ccwAngleLimit_ = Controller::angle2tick(request.ccw_angle_limit,
+        Controller::deg2rad(rangeInDegrees_), maxTicks_);
+//      controller_->setAngleLimits(motorId_, cwAngleLimit_, ccwAngleLimit_);
+      controller_->setCwAngleLimit(motorId_, cwAngleLimit_);
+      controller_->setCcwAngleLimit(motorId_, ccwAngleLimit_);
       response.response = true;
       response.message = "Success";
     }
@@ -388,8 +437,10 @@ namespace dynamixel {
   bool DynamixelNode::getAngleLimits(dynamixel::GetAngleLimits::Request&
       /*request*/, dynamixel::GetAngleLimits::Response& response) {
     if (motorConnected_) {
-      response.cw_angle_limit = cwAngleLimit_;
-      response.ccw_angle_limit = ccwAngleLimit_;
+      response.cw_angle_limit = Controller::tick2angle(cwAngleLimit_,
+        Controller::deg2rad(rangeInDegrees_), maxTicks_);
+      response.ccw_angle_limit = Controller::tick2angle(ccwAngleLimit_,
+        Controller::deg2rad(rangeInDegrees_), maxTicks_);
       response.response = true;
       response.message = "Success";
     }
@@ -406,7 +457,8 @@ namespace dynamixel {
     try {
       if (!motorConnected_)
         throw IOException("DynamixelNode::setMaxTorque: motor not connected");
-      maxTorque_ = request.max_torque;
+      maxTorque_ = Controller::torqueRatio2raw(request.max_torque);
+      controller_->setMaxTorque(motorId_, maxTorque_);
       response.response = true;
       response.message = "Success";
     }
@@ -422,7 +474,7 @@ namespace dynamixel {
   bool DynamixelNode::getMaxTorque(dynamixel::GetMaxTorque::Request&
       /*request*/, dynamixel::GetMaxTorque::Response& response) {
     if (motorConnected_) {
-      response.max_torque = maxTorque_;
+      response.max_torque = Controller::raw2torqueRatio(maxTorque_);
       response.response = true;
       response.message = "Success";
     }
@@ -441,6 +493,7 @@ namespace dynamixel {
         throw IOException(
           "DynamixelNode::setTorqueEnable: motor not connected");
       torqueEnabled_ = request.enable_torque;
+      controller_->setTorqueEnable(motorId_, torqueEnabled_);
       response.response = true;
       response.message = "Success";
     }
@@ -475,12 +528,24 @@ namespace dynamixel {
       if (!motorConnected_)
         throw IOException(
           "DynamixelNode::setTorqueControlModeEnable: motor not connected");
+      if (!Controller::isModelTorqueControl(modelNumber_))
+        throw BadArgumentException<size_t>(modelNumber_,
+          "DynamixelNode::setTorqueControlModeEnable: not applicable");
       torqueControlModeEnabled_ = request.enable_torque_control_mode;
+      controller_->setTorqueControlModeEnable(motorId_,
+        torqueControlModeEnabled_);
       response.response = true;
       response.message = "Success";
     }
     catch (const IOException& e) {
       ROS_WARN_STREAM_NAMED("dynamixel_node", "IOException: " << e.what());
+      response.response = false;
+      response.message = e.what();
+      torqueControlModeEnabled_ = oldTorqueControlModeEnabled;
+    }
+    catch (const BadArgumentException<size_t>& e) {
+      ROS_WARN_STREAM_NAMED("dynamixel_node", "BadArgumentException: "
+        << e.what());
       response.response = false;
       response.message = e.what();
       torqueControlModeEnabled_ = oldTorqueControlModeEnabled;
@@ -491,14 +556,14 @@ namespace dynamixel {
   bool DynamixelNode::getTorqueControlModeEnable(
       dynamixel::GetTorqueControlModeEnable::Request& /*request*/,
       dynamixel::GetTorqueControlModeEnable::Response& response) {
-    if (motorConnected_) {
+    if (motorConnected_ & Controller::isModelTorqueControl(modelNumber_)) {
       response.torque_control_mode_enabled = torqueControlModeEnabled_;
       response.response = true;
       response.message = "Success";
     }
     else {
       response.response = false;
-      response.message = "Motor not connected";
+      response.message = "Motor not connected or not applicable";
     }
     return true;
   }

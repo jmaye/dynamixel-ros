@@ -187,7 +187,7 @@ namespace dynamixel {
     /// Servo firmware version
     uint8_t firmwareVersion_;
     /// Return delay time
-    uint16_t returnDelayTime_;
+    uint8_t returnDelayTime_;
     /// Motor connected
     bool motorConnected_;
     /// Maximum number of ticks
@@ -199,43 +199,57 @@ namespace dynamixel {
     /// Motor baud rate
     uint8_t servoBaudRate_;
     /// Clockwise angle limit
-    double cwAngleLimit_;
+    uint16_t cwAngleLimit_;
     /// Counterclockwise angle limit
-    double ccwAngleLimit_;
+    uint16_t ccwAngleLimit_;
     /// Highest limit temperature
     uint8_t highestLimitTemperature_;
     /// Highest limit voltage
-    double highestLimitVoltage_;
+    uint8_t highestLimitVoltage_;
     /// Lowest limit voltage
-    double lowestLimitVoltage_;
-    /// Maximum torque in percent
-    double maxTorque_;
+    uint8_t lowestLimitVoltage_;
+    /// Maximum torque ratio
+    uint16_t maxTorque_;
     /// Torque enabled
     bool torqueEnabled_;
-    /// Current position
-    double currentPosition_;
-    /// Goal position
-    double goalPosition_;
-    /// Moving speed
-    double movingSpeed_;
-    /// Torque limit in percent
-    double torqueLimit_;
     /// P gain
-    double pGain_;
+    uint8_t pGain_;
     /// I gain
-    double iGain_;
+    uint8_t iGain_;
     /// D gain
-    double dGain_;
+    uint8_t dGain_;
     /// Clockwise compliance margin
-    uint8_t cwCompliangeMargin_;
+    uint8_t cwComplianceMargin_;
     /// Counterclockwise compliance margin
-    uint8_t ccwCompliangeMargin_;
+    uint8_t ccwComplianceMargin_;
     /// Clockwise compliance slope
-    uint8_t cwCompliangeSlope_;
+    uint8_t cwComplianceSlope_;
     /// Counterclockwise compliance slope
-    uint8_t ccwCompliangeSlope_;
+    uint8_t ccwComplianceSlope_;
+    /// Goal position
+    uint16_t goalPosition_;
+    /// Moving speed
+    uint16_t movingSpeed_;
+    /// Torque limit ratio
+    uint16_t torqueLimit_;
+    /// Current position
+    uint16_t presentPosition_;
+    /// Current speed
+    uint16_t presentSpeed_;
+    /// Current load
+    uint16_t presentLoad_;
+    /// Current voltage
+    uint8_t presentVoltage_;
+    /// Current temperature
+    uint8_t presentTemperature_;
+    /// Is an instruction registered
+    bool registered_;
+    /// Is the servo moving
+    bool moving_;
     /// Torque control mode enabled
     bool torqueControlModeEnabled_;
+    /// Goal torque
+    uint16_t goalTorque_;
     /// Set PID gains service
     ros::ServiceServer setPidGainsService_;
     /// Get PID gains service
