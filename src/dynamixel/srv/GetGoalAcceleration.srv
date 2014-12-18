@@ -1,0 +1,4 @@
+---
+bool response
+string message
+float64 goal_acceleration

@@ -1,3 +1,9 @@
+dynamixel-ros (0.1-6) trusty; urgency=medium
+
+  * More services 
+
+ -- Jerome Maye <jerome.maye@mavt.ethz.ch>  Thu, 18 Dec 2014 18:46:57 +0100
+
 dynamixel-ros (0.1-5) trusty; urgency=medium
 
   * Improving the interface 

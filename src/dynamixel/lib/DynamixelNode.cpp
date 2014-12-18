@@ -99,6 +99,18 @@ namespace dynamixel {
     getTorqueControlModeEnableService_ = nodeHandle_.advertiseService(
       "get_torque_control_mode_enable",
       &DynamixelNode::getTorqueControlModeEnable, this);
+    setGoalTorqueService_ = nodeHandle_.advertiseService("set_goal_torque",
+      &DynamixelNode::setGoalTorque, this);
+    getGoalTorqueService_ = nodeHandle_.advertiseService("get_goal_torque",
+      &DynamixelNode::getGoalTorque, this);
+    setGoalPositionService_ = nodeHandle_.advertiseService("set_goal_position",
+      &DynamixelNode::setGoalPosition, this);
+    getGoalPositionService_ = nodeHandle_.advertiseService("get_goal_position",
+      &DynamixelNode::getGoalPosition, this);
+    setMovingSpeedService_ = nodeHandle_.advertiseService("set_moving_speed",
+      &DynamixelNode::setMovingSpeed, this);
+    getMovingSpeedService_ = nodeHandle_.advertiseService("get_moving_speed",
+      &DynamixelNode::getMovingSpeed, this);
   }
 
 /******************************************************************************/
@@ -173,10 +185,15 @@ namespace dynamixel {
       status.add("Present temperature [C]", static_cast<unsigned>(
         presentTemperature_));
       status.add("Moving", moving_);
+      status.add("Punch", punch_);
       if (Controller::isModelTorqueControl(modelNumber_)) {
+        status.add("Current [A]", Controller::raw2amp(current_));
         status.add("Torque control mode enabled", torqueControlModeEnabled_);
-        status.add("Goal torque", goalTorque_);
+        status.add("Goal torque [A]", Controller::rawtorque2amp(goalTorque_));
       }
+      if (Controller::isModelMX(modelNumber_))
+        status.add("Goal acceleration [rad/s^2]",
+          Controller::raw2rps2(goalAcceleration_));
       status.summary(diagnostic_msgs::DiagnosticStatus::OK, "Motor connected");
     }
     else
@@ -204,22 +221,25 @@ namespace dynamixel {
           rpmPerTick_ = Controller::getModelInformation(modelNumber_).
             rpmPerTick;
           servoBaudRate_ = controller_->getBaudRate(motorId_);
-          cwAngleLimit_ = controller_->getCwAngleLimit(motorId_);
-          ccwAngleLimit_ = controller_->getCcwAngleLimit(motorId_);
+          controller_->getAngleLimits(motorId_, cwAngleLimit_, ccwAngleLimit_);
           highestLimitTemperature_ = controller_->getHighestLimitTemperature(
             motorId_);
           highestLimitVoltage_ = controller_->getHighestLimitVoltage(motorId_);
           lowestLimitVoltage_ = controller_->getLowestLimitVoltage(motorId_);
           maxTorque_ = controller_->getMaxTorque(motorId_);
           torqueEnabled_ = controller_->isTorqueEnable(motorId_);
-          if (Controller::isModelMX(modelNumber_))
+          punch_ = controller_->getPunch(motorId_);
+          if (Controller::isModelMX(modelNumber_)) {
             controller_->getPIDGains(motorId_, pGain_, iGain_, dGain_);
+            goalAcceleration_ = controller_->getGoalAcceleration(motorId_);
+          }
           else
             controller_->getCompliance(motorId_, cwComplianceMargin_,
               ccwComplianceMargin_, cwComplianceSlope_, ccwComplianceSlope_);
           controller_->getGoalPositionSpeedTorque(motorId_, goalPosition_,
             movingSpeed_, torqueLimit_);
           if (Controller::isModelTorqueControl(modelNumber_)) {
+            current_ = controller_->getCurrent(motorId_);
             torqueControlModeEnabled_ =
               controller_->isTorqueControlModeEnable(motorId_);
             goalTorque_ = controller_->getGoalTorque(motorId_);
@@ -418,9 +438,7 @@ namespace dynamixel {
         Controller::deg2rad(rangeInDegrees_), maxTicks_);
       ccwAngleLimit_ = Controller::angle2tick(request.ccw_angle_limit,
         Controller::deg2rad(rangeInDegrees_), maxTicks_);
-//      controller_->setAngleLimits(motorId_, cwAngleLimit_, ccwAngleLimit_);
-      controller_->setCwAngleLimit(motorId_, cwAngleLimit_);
-      controller_->setCcwAngleLimit(motorId_, ccwAngleLimit_);
+      controller_->setAngleLimits(motorId_, cwAngleLimit_, ccwAngleLimit_);
       response.response = true;
       response.message = "Success";
     }
@@ -565,6 +583,71 @@ namespace dynamixel {
       response.response = false;
       response.message = "Motor not connected or not applicable";
     }
+    return true;
+  }
+
+  bool DynamixelNode::setGoalTorque(dynamixel::SetGoalTorque::Request& request,
+      dynamixel::SetGoalTorque::Response& response) {
+    const auto oldGoalTorque = goalTorque_;
+    try {
+      if (!motorConnected_)
+        throw IOException(
+          "DynamixelNode::setGoalTorque: motor not connected");
+      if (!Controller::isModelTorqueControl(modelNumber_))
+        throw BadArgumentException<size_t>(modelNumber_,
+          "DynamixelNode::setGoalTorque: not applicable");
+      goalTorque_ = Controller::amp2rawtorque(request.goal_torque);
+      controller_->setGoalTorque(motorId_, goalTorque_);
+      response.response = true;
+      response.message = "Success";
+    }
+    catch (const IOException& e) {
+      ROS_WARN_STREAM_NAMED("dynamixel_node", "IOException: " << e.what());
+      response.response = false;
+      response.message = e.what();
+      goalTorque_ = oldGoalTorque;
+    }
+    catch (const BadArgumentException<size_t>& e) {
+      ROS_WARN_STREAM_NAMED("dynamixel_node", "BadArgumentException: "
+        << e.what());
+      response.response = false;
+      response.message = e.what();
+      goalTorque_ = oldGoalTorque;
+    }
+    return true;
+  }
+
+  bool DynamixelNode::getGoalTorque(dynamixel::GetGoalTorque::Request&
+      /*request*/, dynamixel::GetGoalTorque::Response& response) {
+    if (motorConnected_ & Controller::isModelTorqueControl(modelNumber_)) {
+      response.goal_torque = Controller::rawtorque2amp(goalTorque_);
+      response.response = true;
+      response.message = "Success";
+    }
+    else {
+      response.response = false;
+      response.message = "Motor not connected or not applicable";
+    }
+    return true;
+  }
+
+  bool DynamixelNode::setGoalPosition(dynamixel::SetGoalPosition::Request&
+      request, dynamixel::SetGoalPosition::Response& response) {
+    return true;
+  }
+
+  bool DynamixelNode::getGoalPosition(dynamixel::GetGoalPosition::Request&
+      /*request*/, dynamixel::GetGoalPosition::Response& response) {
+    return true;
+  }
+
+  bool DynamixelNode::setMovingSpeed(dynamixel::SetMovingSpeed::Request&
+      request, dynamixel::SetMovingSpeed::Response& response) {
+    return true;
+  }
+
+  bool DynamixelNode::getMovingSpeed(dynamixel::GetMovingSpeed::Request&
+      /*request*/, dynamixel::GetMovingSpeed::Response& response) {
     return true;
   }
 

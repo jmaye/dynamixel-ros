@@ -1,0 +1,6 @@
+float64 goal_position
+float64 moving_speed
+float64 torque_limit
+---
+bool response
+string message

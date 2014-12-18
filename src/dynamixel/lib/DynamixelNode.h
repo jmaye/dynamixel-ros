@@ -46,6 +46,14 @@
 #include "dynamixel/GetTorqueEnable.h"
 #include "dynamixel/SetTorqueControlModeEnable.h"
 #include "dynamixel/GetTorqueControlModeEnable.h"
+#include "dynamixel/SetGoalTorque.h"
+#include "dynamixel/GetGoalTorque.h"
+#include "dynamixel/SetGoalAcceleration.h"
+#include "dynamixel/GetGoalAcceleration.h"
+#include "dynamixel/SetGoalPosition.h"
+#include "dynamixel/GetGoalPosition.h"
+#include "dynamixel/SetMovingSpeed.h"
+#include "dynamixel/GetMovingSpeed.h"
 
 namespace diagnostic_updater {
   class HeaderlessTopicDiagnostic;
@@ -135,6 +143,24 @@ namespace dynamixel {
     bool getTorqueControlModeEnable(
       dynamixel::GetTorqueControlModeEnable::Request& request,
       dynamixel::GetTorqueControlModeEnable::Response& response);
+    /// Set goal torque service
+    bool setGoalTorque(dynamixel::SetGoalTorque::Request& request,
+      dynamixel::SetGoalTorque::Response& response);
+    /// Get goal torque service
+    bool getGoalTorque(dynamixel::GetGoalTorque::Request& request,
+      dynamixel::GetGoalTorque::Response& response);
+    /// Set goal position service
+    bool setGoalPosition(dynamixel::SetGoalPosition::Request& request,
+      dynamixel::SetGoalPosition::Response& response);
+    /// Get goal position service
+    bool getGoalPosition(dynamixel::GetGoalPosition::Request& request,
+      dynamixel::GetGoalPosition::Response& response);
+    /// Set moving speed service
+    bool setMovingSpeed(dynamixel::SetMovingSpeed::Request& request,
+      dynamixel::SetMovingSpeed::Response& response);
+    /// Get moving speed service
+    bool getMovingSpeed(dynamixel::GetMovingSpeed::Request& request,
+      dynamixel::GetMovingSpeed::Response& response);
     /** @}
       */
 
@@ -246,10 +272,16 @@ namespace dynamixel {
     bool registered_;
     /// Is the servo moving
     bool moving_;
+    /// Punch
+    uint16_t punch_;
+    /// Consuming current
+    uint16_t current_;
     /// Torque control mode enabled
     bool torqueControlModeEnabled_;
     /// Goal torque
     uint16_t goalTorque_;
+    /// Goal acceleration
+    uint8_t goalAcceleration_;
     /// Set PID gains service
     ros::ServiceServer setPidGainsService_;
     /// Get PID gains service
@@ -274,6 +306,18 @@ namespace dynamixel {
     ros::ServiceServer setTorqueControlModeEnableService_;
     /// Get torque control mode enable service
     ros::ServiceServer getTorqueControlModeEnableService_;
+    /// Set goal torque service
+    ros::ServiceServer setGoalTorqueService_;
+    /// Get goal torque service
+    ros::ServiceServer getGoalTorqueService_;
+    /// Set goal position service
+    ros::ServiceServer setGoalPositionService_;
+    /// Get goal position service
+    ros::ServiceServer getGoalPositionService_;
+    /// Set moving speed service
+    ros::ServiceServer setMovingSpeedService_;
+    /// Get moving speed service
+    ros::ServiceServer getMovingSpeedService_;
     /** @}
       */
 
