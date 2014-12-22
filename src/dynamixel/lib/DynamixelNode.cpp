@@ -209,6 +209,13 @@ namespace dynamixel {
     controller_ = std::make_shared<Controller>(
       std::make_shared<SerialPort>(serialPortDeviceName_, serialPortBaudRate_));
     ros::Rate loopRate(acquisitionLoopRate_);
+    auto jointState = boost::make_shared<sensor_msgs::JointState>();
+    jointState->header.frame_id = jointStatePublisherFrameId_;
+    jointState->name.resize(1);
+    jointState->name[0] = jointStatePublisherFrameId_ + "_joint";
+    jointState->position.resize(1);
+    jointState->velocity.resize(1);
+    jointState->effort.resize(1);
     while (nodeHandle_.ok()) {
       try {
         if (!modelNumber_) {
@@ -263,12 +270,12 @@ namespace dynamixel {
         jointStatePublisherFrequencyDiagnostic_->tick();
         motorConnected_ = true;
         if (jointStatePublisher_.getNumSubscribers() > 0) {
-          auto jointState = boost::make_shared<sensor_msgs::JointState>();
           jointState->header.stamp = timestamp;
-          jointState->header.frame_id = jointStatePublisherFrameId_;
-          jointState->name.push_back(jointStatePublisherFrameId_ + "_joint");
-          jointState->position.push_back(Controller::tick2angle(
-            presentPosition_, Controller::deg2rad(rangeInDegrees_), maxTicks_));
+          jointState->position[0] = Controller::tick2angle(presentPosition_,
+            Controller::deg2rad(rangeInDegrees_), maxTicks_);
+          jointState->velocity[0] = Controller::rpm2rps(
+            Controller::raw2rpm(presentSpeed_, rpmPerTick_));
+          jointState->effort[0] = Controller::raw2torqueRatio(presentLoad_);
           jointStatePublisher_.publish(jointState);
         }
         tf::Transform transform;
@@ -629,8 +636,7 @@ namespace dynamixel {
           "DynamixelNode::setGoalTorque: not applicable");
       goalTorque_ = Controller::amp2rawtorque(request.goal_torque);
       torqueLimit_ = Controller::torqueRatio2raw(request.torque_limit);
-      if (goalTorque_ != oldGoalTorque)
-        controller_->setGoalTorque(motorId_, goalTorque_);
+      controller_->setGoalTorque(motorId_, goalTorque_);
       if (torqueLimit_ != oldTorqueLimit)
         controller_->setTorqueLimit(motorId_, torqueLimit_);
       response.response = true;
@@ -683,15 +689,12 @@ namespace dynamixel {
       movingSpeed_ = Controller::rpm2raw(Controller::rps2rpm(
         request.moving_speed), rpmPerTick_);
       torqueLimit_ = Controller::torqueRatio2raw(request.torque_limit);
-      if (goalPosition_ != oldGoalPosition && movingSpeed_ == oldMovingSpeed
-          && torqueLimit_ == oldTorqueLimit)
+      if (movingSpeed_ == oldMovingSpeed && torqueLimit_ == oldTorqueLimit)
         controller_->setGoalPosition(motorId_, goalPosition_);
-      else if (goalPosition_ != oldGoalPosition
-          && movingSpeed_ != oldMovingSpeed && torqueLimit_ == oldTorqueLimit)
+      else if (movingSpeed_ != oldMovingSpeed && torqueLimit_ == oldTorqueLimit)
         controller_->setGoalPositionSpeed(motorId_, goalPosition_,
           movingSpeed_);
-      else if (goalPosition_ != oldGoalPosition
-          && movingSpeed_ != oldMovingSpeed && torqueLimit_ != oldTorqueLimit)
+      else if (movingSpeed_ != oldMovingSpeed && torqueLimit_ != oldTorqueLimit)
         controller_->setGoalPositionSpeedTorque(motorId_, goalPosition_,
           movingSpeed_, torqueLimit_);
       response.response = true;
@@ -737,8 +740,7 @@ namespace dynamixel {
       movingSpeed_ = Controller::rpm2raw(Controller::rps2rpm(
         request.moving_speed), rpmPerTick_);
       torqueLimit_ = Controller::torqueRatio2raw(request.torque_limit);
-      if (movingSpeed_ != oldMovingSpeed)
-        controller_->setMovingSpeed(motorId_, movingSpeed_);
+      controller_->setMovingSpeed(motorId_, movingSpeed_);
       if (torqueLimit_ != oldTorqueLimit)
         controller_->setTorqueLimit(motorId_, torqueLimit_);
       response.response = true;
@@ -782,8 +784,7 @@ namespace dynamixel {
         throw BadArgumentException<size_t>(modelNumber_,
           "DynamixelNode::setGoalAcceleration: not applicable");
       goalAcceleration_ = Controller::rps22raw(request.goal_acceleration);
-      if (goalAcceleration_ != oldGoalAcceleration)
-        controller_->setGoalAcceleration(motorId_, goalAcceleration_);
+      controller_->setGoalAcceleration(motorId_, goalAcceleration_);
       response.response = true;
       response.message = "Success";
     }
