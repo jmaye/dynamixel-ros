@@ -1,3 +1,9 @@
+dynamixel-ros (0.1-7) trusty; urgency=medium
+
+  * First working version 
+
+ -- Jerome Maye <jerome.maye@mavt.ethz.ch>  Mon, 22 Dec 2014 11:58:25 +0100
+
 dynamixel-ros (0.1-6) trusty; urgency=medium
 
   * More services 

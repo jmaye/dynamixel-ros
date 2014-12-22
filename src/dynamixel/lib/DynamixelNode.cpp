@@ -111,6 +111,10 @@ namespace dynamixel {
       &DynamixelNode::setMovingSpeed, this);
     getMovingSpeedService_ = nodeHandle_.advertiseService("get_moving_speed",
       &DynamixelNode::getMovingSpeed, this);
+    setGoalAccelerationService_ = nodeHandle_.advertiseService(
+      "set_goal_acceleration", &DynamixelNode::setGoalAcceleration, this);
+    getGoalAccelerationService_ = nodeHandle_.advertiseService(
+      "get_goal_acceleration", &DynamixelNode::getGoalAcceleration, this);
   }
 
 /******************************************************************************/
@@ -244,6 +248,7 @@ namespace dynamixel {
               controller_->isTorqueControlModeEnable(motorId_);
             goalTorque_ = controller_->getGoalTorque(motorId_);
           }
+          controller_->setReturnDelayTime(motorId_, 0);
         }
         auto start = std::chrono::steady_clock::now();
         controller_->getState(motorId_, presentPosition_, presentSpeed_,
@@ -589,6 +594,7 @@ namespace dynamixel {
   bool DynamixelNode::setGoalTorque(dynamixel::SetGoalTorque::Request& request,
       dynamixel::SetGoalTorque::Response& response) {
     const auto oldGoalTorque = goalTorque_;
+    const auto oldTorqueLimit = torqueLimit_;
     try {
       if (!motorConnected_)
         throw IOException(
@@ -597,7 +603,11 @@ namespace dynamixel {
         throw BadArgumentException<size_t>(modelNumber_,
           "DynamixelNode::setGoalTorque: not applicable");
       goalTorque_ = Controller::amp2rawtorque(request.goal_torque);
-      controller_->setGoalTorque(motorId_, goalTorque_);
+      torqueLimit_ = Controller::torqueRatio2raw(request.torque_limit);
+      if (goalTorque_ != oldGoalTorque)
+        controller_->setGoalTorque(motorId_, goalTorque_);
+      if (torqueLimit_ != oldTorqueLimit)
+        controller_->setTorqueLimit(motorId_, torqueLimit_);
       response.response = true;
       response.message = "Success";
     }
@@ -606,6 +616,7 @@ namespace dynamixel {
       response.response = false;
       response.message = e.what();
       goalTorque_ = oldGoalTorque;
+      torqueLimit_ = oldTorqueLimit;
     }
     catch (const BadArgumentException<size_t>& e) {
       ROS_WARN_STREAM_NAMED("dynamixel_node", "BadArgumentException: "
@@ -613,6 +624,7 @@ namespace dynamixel {
       response.response = false;
       response.message = e.what();
       goalTorque_ = oldGoalTorque;
+      torqueLimit_ = oldTorqueLimit;
     }
     return true;
   }
@@ -621,6 +633,7 @@ namespace dynamixel {
       /*request*/, dynamixel::GetGoalTorque::Response& response) {
     if (motorConnected_ & Controller::isModelTorqueControl(modelNumber_)) {
       response.goal_torque = Controller::rawtorque2amp(goalTorque_);
+      response.torque_limit = Controller::raw2torqueRatio(torqueLimit_);
       response.response = true;
       response.message = "Success";
     }
@@ -633,21 +646,150 @@ namespace dynamixel {
 
   bool DynamixelNode::setGoalPosition(dynamixel::SetGoalPosition::Request&
       request, dynamixel::SetGoalPosition::Response& response) {
+    const auto oldGoalPosition = goalPosition_;
+    const auto oldMovingSpeed = movingSpeed_;
+    const auto oldTorqueLimit = torqueLimit_;
+    try {
+      if (!motorConnected_)
+        throw IOException(
+          "DynamixelNode::setGoalPosition: motor not connected");
+      goalPosition_ = Controller::angle2tick(request.goal_position,
+        Controller::deg2rad(rangeInDegrees_), maxTicks_);
+      movingSpeed_ = Controller::rpm2raw(Controller::rps2rpm(
+        request.moving_speed), rpmPerTick_);
+      torqueLimit_ = Controller::torqueRatio2raw(request.torque_limit);
+      if (goalPosition_ != oldGoalPosition && movingSpeed_ == oldMovingSpeed
+          && torqueLimit_ == oldTorqueLimit)
+        controller_->setGoalPosition(motorId_, goalPosition_);
+      else if (goalPosition_ != oldGoalPosition
+          && movingSpeed_ != oldMovingSpeed && torqueLimit_ == oldTorqueLimit)
+        controller_->setGoalPositionSpeed(motorId_, goalPosition_,
+          movingSpeed_);
+      else if (goalPosition_ != oldGoalPosition
+          && movingSpeed_ != oldMovingSpeed && torqueLimit_ != oldTorqueLimit)
+        controller_->setGoalPositionSpeedTorque(motorId_, goalPosition_,
+          movingSpeed_, torqueLimit_);
+      response.response = true;
+      response.message = "Success";
+    }
+    catch (const IOException& e) {
+      ROS_WARN_STREAM_NAMED("dynamixel_node", "IOException: " << e.what());
+      response.response = false;
+      response.message = e.what();
+      goalPosition_ = oldGoalPosition;
+      movingSpeed_ = oldMovingSpeed;
+      torqueLimit_ = oldTorqueLimit;
+    }
     return true;
   }
 
   bool DynamixelNode::getGoalPosition(dynamixel::GetGoalPosition::Request&
       /*request*/, dynamixel::GetGoalPosition::Response& response) {
+    if (motorConnected_) {
+      response.goal_position = Controller::tick2angle(goalPosition_,
+        Controller::deg2rad(rangeInDegrees_), maxTicks_);
+      response.moving_speed = Controller::rpm2rps(
+        Controller::raw2rpm(movingSpeed_, rpmPerTick_));
+      response.torque_limit = Controller::raw2torqueRatio(torqueLimit_);
+      response.response = true;
+      response.message = "Success";
+    }
+    else {
+      response.response = false;
+      response.message = "Motor not connected";
+    }
     return true;
   }
 
   bool DynamixelNode::setMovingSpeed(dynamixel::SetMovingSpeed::Request&
       request, dynamixel::SetMovingSpeed::Response& response) {
+    const auto oldMovingSpeed = movingSpeed_;
+    const auto oldTorqueLimit = torqueLimit_;
+    try {
+      if (!motorConnected_)
+        throw IOException(
+          "DynamixelNode::setMovingSpeed: motor not connected");
+      movingSpeed_ = Controller::rpm2raw(Controller::rps2rpm(
+        request.moving_speed), rpmPerTick_);
+      torqueLimit_ = Controller::torqueRatio2raw(request.torque_limit);
+      if (movingSpeed_ != oldMovingSpeed)
+        controller_->setMovingSpeed(motorId_, movingSpeed_);
+      if (torqueLimit_ != oldTorqueLimit)
+        controller_->setTorqueLimit(motorId_, torqueLimit_);
+      response.response = true;
+      response.message = "Success";
+    }
+    catch (const IOException& e) {
+      ROS_WARN_STREAM_NAMED("dynamixel_node", "IOException: " << e.what());
+      response.response = false;
+      response.message = e.what();
+      movingSpeed_ = oldMovingSpeed;
+      torqueLimit_ = oldTorqueLimit;
+    }
     return true;
   }
 
   bool DynamixelNode::getMovingSpeed(dynamixel::GetMovingSpeed::Request&
       /*request*/, dynamixel::GetMovingSpeed::Response& response) {
+    if (motorConnected_) {
+      response.moving_speed = Controller::rpm2rps(
+        Controller::raw2rpm(movingSpeed_, rpmPerTick_));
+      response.torque_limit = Controller::raw2torqueRatio(torqueLimit_);
+      response.response = true;
+      response.message = "Success";
+    }
+    else {
+      response.response = false;
+      response.message = "Motor not connected";
+    }
+    return true;
+  }
+
+  bool DynamixelNode::setGoalAcceleration(
+      dynamixel::SetGoalAcceleration::Request& request,
+      dynamixel::SetGoalAcceleration::Response& response) {
+    const auto oldGoalAcceleration = goalAcceleration_;
+    try {
+      if (!motorConnected_)
+        throw IOException(
+          "DynamixelNode::setGoalAcceleration: motor not connected");
+      if (!Controller::isModelMX(modelNumber_))
+        throw BadArgumentException<size_t>(modelNumber_,
+          "DynamixelNode::setGoalAcceleration: not applicable");
+      goalAcceleration_ = Controller::rps22raw(request.goal_acceleration);
+      if (goalAcceleration_ != oldGoalAcceleration)
+        controller_->setGoalAcceleration(motorId_, goalAcceleration_);
+      response.response = true;
+      response.message = "Success";
+    }
+    catch (const IOException& e) {
+      ROS_WARN_STREAM_NAMED("dynamixel_node", "IOException: " << e.what());
+      response.response = false;
+      response.message = e.what();
+      goalAcceleration_ = oldGoalAcceleration;
+    }
+    catch (const BadArgumentException<size_t>& e) {
+      ROS_WARN_STREAM_NAMED("dynamixel_node", "BadArgumentException: "
+        << e.what());
+      response.response = false;
+      response.message = e.what();
+      goalAcceleration_ = oldGoalAcceleration;
+    }
+    return true;
+  }
+
+  bool DynamixelNode::getGoalAcceleration(
+      dynamixel::GetGoalAcceleration::Request& /*request*/,
+      dynamixel::GetGoalAcceleration::Response& response) {
+    if (motorConnected_ & Controller::isModelMX(modelNumber_)) {
+      response.goal_acceleration = Controller::raw2rps2(goalAcceleration_);
+      response.response = true;
+      response.message = "Success";
+    }
+    else {
+      response.response = false;
+      response.message = "Motor not connected or not applicable";
+    }
     return true;
   }
 

@@ -161,6 +161,12 @@ namespace dynamixel {
     /// Get moving speed service
     bool getMovingSpeed(dynamixel::GetMovingSpeed::Request& request,
       dynamixel::GetMovingSpeed::Response& response);
+    /// Set goal acceleration service
+    bool setGoalAcceleration(dynamixel::SetGoalAcceleration::Request& request,
+      dynamixel::SetGoalAcceleration::Response& response);
+    /// Get goal acceleration service
+    bool getGoalAcceleration(dynamixel::GetGoalAcceleration::Request& request,
+      dynamixel::GetGoalAcceleration::Response& response);
     /** @}
       */
 
@@ -318,6 +324,10 @@ namespace dynamixel {
     ros::ServiceServer setMovingSpeedService_;
     /// Get moving speed service
     ros::ServiceServer getMovingSpeedService_;
+    /// Set goal acceleration service
+    ros::ServiceServer setGoalAccelerationService_;
+    /// Get goal acceleration service
+    ros::ServiceServer getGoalAccelerationService_;
     /** @}
       */
 
