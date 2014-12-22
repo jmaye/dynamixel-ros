@@ -350,6 +350,9 @@ namespace dynamixel {
     try {
       if (!motorConnected_)
         throw IOException("DynamixelNode::setPidGains: motor not connected");
+      if (!Controller::isModelMX(modelNumber_))
+        throw BadArgumentException<size_t>(modelNumber_,
+          "DynamixelNode::setPidGains: not applicable");
       pGain_ = Controller::Kp2raw(request.p_gain);
       iGain_ = Controller::Ki2raw(request.i_gain);
       dGain_ = Controller::Kd2raw(request.d_gain);
@@ -366,12 +369,21 @@ namespace dynamixel {
       iGain_ = oldIGain;
       dGain_ = oldDGain;
     }
+    catch (const BadArgumentException<size_t>& e) {
+      ROS_WARN_STREAM_NAMED("dynamixel_node", "BadArgumentException: "
+        << e.what());
+      response.response = false;
+      response.message = e.what();
+      pGain_ = oldPGain;
+      iGain_ = oldIGain;
+      dGain_ = oldDGain;
+    }
     return true;
   }
 
   bool DynamixelNode::getPidGains(dynamixel::GetPidGains::Request& /*request*/,
       dynamixel::GetPidGains::Response& response) {
-    if (motorConnected_) {
+    if (motorConnected_ && Controller::isModelMX(modelNumber_)) {
       response.p_gain = Controller::raw2Kp(pGain_);
       response.i_gain = Controller::raw2Ki(iGain_);
       response.d_gain = Controller::raw2Kd(dGain_);
@@ -380,7 +392,7 @@ namespace dynamixel {
     }
     else {
       response.response = false;
-      response.message = "Motor not connected";
+      response.message = "Motor not connected or not applicable";
     }
     return true;
   }
@@ -394,6 +406,9 @@ namespace dynamixel {
     try {
       if (!motorConnected_)
         throw IOException("DynamixelNode::setCompliance: motor not connected");
+      if (Controller::isModelMX(modelNumber_))
+        throw BadArgumentException<size_t>(modelNumber_,
+          "DynamixelNode::setCompliance: not applicable");
       cwComplianceMargin_ = request.cw_margin;
       ccwComplianceMargin_ = request.ccw_margin;
       cwComplianceSlope_ = request.cw_slope;
@@ -412,12 +427,22 @@ namespace dynamixel {
       cwComplianceSlope_ = oldCwComplianceSlope;
       ccwComplianceSlope_ = oldCcwComplianceSlope;
     }
+    catch (const BadArgumentException<size_t>& e) {
+      ROS_WARN_STREAM_NAMED("dynamixel_node", "BadArgumentException: "
+        << e.what());
+      response.response = false;
+      response.message = e.what();
+      cwComplianceMargin_ = oldCwComplianceMargin;
+      ccwComplianceMargin_ = oldCcwComplianceMargin;
+      cwComplianceSlope_ = oldCwComplianceSlope;
+      ccwComplianceSlope_ = oldCcwComplianceSlope;
+    }
     return true;
   }
 
   bool DynamixelNode::getCompliance(dynamixel::GetCompliance::Request&
       /*request*/, dynamixel::GetCompliance::Response& response) {
-    if (motorConnected_) {
+    if (motorConnected_ && !Controller::isModelMX(modelNumber_)) {
       response.cw_margin = cwComplianceMargin_;
       response.ccw_margin = ccwComplianceMargin_;
       response.cw_slope = cwComplianceSlope_;
@@ -427,7 +452,7 @@ namespace dynamixel {
     }
     else {
       response.response = false;
-      response.message = "Motor not connected";
+      response.message = "Motor not connected or not applicable";
     }
     return true;
   }
