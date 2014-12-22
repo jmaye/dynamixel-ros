@@ -10,4 +10,4 @@ joint_state_publisher:
   frame_id: "dynamixel"
 ros:
   retry_timeout: 1.0
-  acquisition_loop_rate: 40.0
+  acquisition_loop_rate: 100.0

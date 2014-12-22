@@ -1,3 +1,9 @@
+dynamixel-ros (0.1-10) trusty; urgency=medium
+
+  * Changing default loop rate 
+
+ -- Jerome Maye <jerome.maye@mavt.ethz.ch>  Mon, 22 Dec 2014 13:49:04 +0100
+
 dynamixel-ros (0.1-9) trusty; urgency=medium
 
   * Some bugs 
