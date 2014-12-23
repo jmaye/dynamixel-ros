@@ -9,5 +9,5 @@ joint_state_publisher:
   freq_tol_percentage: 0.1
   frame_id: "dynamixel"
 ros:
-  retry_timeout: 1.0
+  retry_timeout: 0.2
   acquisition_loop_rate: 100.0
