@@ -46,7 +46,6 @@ namespace dynamixel {
 
   DynamixelNode::DynamixelNode(const ros::NodeHandle& nh) :
       nodeHandle_(nh),
-      modelNumber_(0),
       motorConnected_(false) {
     // retrieve configurable parameters
     getParameters();
@@ -218,7 +217,7 @@ namespace dynamixel {
     jointState->effort.resize(1);
     while (nodeHandle_.ok()) {
       try {
-        if (!modelNumber_) {
+        if (!motorConnected_) {
           modelNumber_ = controller_->getModelNumber(motorId_);
           if (!Controller::isModelSupported(modelNumber_))
             throw BadArgumentException<size_t>(modelNumber_,
@@ -293,7 +292,7 @@ namespace dynamixel {
         ROS_WARN_STREAM_NAMED("dynamixel_node", "Retrying in " << retryTimeout_
           << " [s]");
         motorConnected_ = false;
-        modelNumber_ = 0;
+        controller_->getSerialPort()->close();
         std::this_thread::sleep_for(std::chrono::milliseconds(
           static_cast<int64_t>(std::round(retryTimeout_ * std::milli::den))));
       }
@@ -303,7 +302,7 @@ namespace dynamixel {
         ROS_WARN_STREAM_NAMED("dynamixel_node", "Retrying in "
           << retryTimeout_ << " [s]");
         motorConnected_ = false;
-        modelNumber_ = 0;
+        controller_->getSerialPort()->close();
         std::this_thread::sleep_for(std::chrono::milliseconds(
           static_cast<int64_t>(std::round(retryTimeout_ * std::milli::den))));
       }
@@ -313,7 +312,7 @@ namespace dynamixel {
         ROS_WARN_STREAM_NAMED("dynamixel_node", "Retrying in " << retryTimeout_
           << " [s]");
         motorConnected_ = false;
-        modelNumber_ = 0;
+        controller_->getSerialPort()->close();
         std::this_thread::sleep_for(std::chrono::milliseconds(
           static_cast<int64_t>(std::round(retryTimeout_ * std::milli::den))));
       }
